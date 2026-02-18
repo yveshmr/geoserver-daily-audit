@@ -1,0 +1,15 @@
+semob:Ciclovias Existentes
+semob:Dados de movimento de passageiros (Quantitativo e Financeiro)
+semob:Estações de  Metrô
+semob:Faixas Exclusivas - DF
+semob:Frota por Operadora
+semob:Horários das Linhas
+semob:Itinerário Espacial das Linhas
+semob:Linha Metrô
+semob:Linhas de onibus
+semob:Paradas de onibus
+semob:Ponto de paradas 2025
+semob:Terminais de ônibus
+semob:Viagens Programadas por Linha
+semob:vw_teste_parada_wfs
+semob:Última posição da frota

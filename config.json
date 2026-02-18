@@ -1,7 +1,95 @@
 {
   "base_ows": "https://geoserver.semob.df.gov.br/geoserver/semob/ows",
   "jobs": [
-    { "typeNames": "semob:Paradas de onibus", "outputFormat": "csv", "ext": "csv", "id_col": null },
-    { "typeNames": "semob:Linhas de onibus", "outputFormat": "application/json", "ext": "geojson", "id_col": null }
+    {
+      "typeNames": "semob:Ciclovias Existentes",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Dados de movimento de passageiros (Quantitativo e Financeiro)",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Estações de  Metrô",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Faixas Exclusivas - DF",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Frota por Operadora",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Horários das Linhas",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Itinerário Espacial das Linhas",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Linha Metrô",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Linhas de onibus",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Paradas de onibus",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Ponto de paradas 2025",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Terminais de ônibus",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Viagens Programadas por Linha",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:vw_teste_parada_wfs",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    },
+    {
+      "typeNames": "semob:Última posição da frota",
+      "outputFormat": "application/json",
+      "ext": "geojson",
+      "id_col": null
+    }
   ]
 }
