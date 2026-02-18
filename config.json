@@ -1,0 +1,7 @@
+{
+  "base_ows": "https://geoserver.semob.df.gov.br/geoserver/semob/ows",
+  "jobs": [
+    { "typeNames": "semob:Paradas de onibus", "outputFormat": "csv", "ext": "csv", "id_col": null },
+    { "typeNames": "semob:Linhas de onibus", "outputFormat": "application/json", "ext": "geojson", "id_col": null }
+  ]
+}
