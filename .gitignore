@@ -1,5 +1,14 @@
-.venv/
-downloads/
+# Python
 __pycache__/
 *.pyc
-stdout.log
+.venv/
+
+# backups
+*_backup*
+*.bak
+
+# downloads gerados
+downloads/
+
+# temporários
+*.xml

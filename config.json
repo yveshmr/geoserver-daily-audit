@@ -1,95 +1,94 @@
 {
   "base_ows": "https://geoserver.semob.df.gov.br/geoserver/semob/ows",
-  "jobs": [
-    {
-      "typeNames": "semob:Ciclovias Existentes",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
+
+  "teams_webhook": "https://urbimobilidade.webhook.office.com/webhookb2/cb40e1b8-96c0-43da-b152-c6b3d14e17b1@dc1693df-d65a-491e-bced-e17803feaf5e/IncomingWebhook/99c3f87853ff4061a4c4de4b83abc69c/d258e1f9-33a4-4a37-8492-3fa227388e4e/V2dtBGh1zhTopvmOsMXWn3eKOH78noklLWJJ_Ftd2bYKU1",
+
+  "page_size": 5000,
+
+  "audit_rules": {
+
+    "semob:Frota por Operadora": {
+      "group_by": "operadora",
+      "identity": ["numero_veiculo", "placa_veiculo"],
+      "ignore_fields": ["data_referencia", "FID"],
+      "geometry_relevant": true
     },
-    {
-      "typeNames": "semob:Dados de movimento de passageiros (Quantitativo e Financeiro)",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
+
+    "semob:Horários das Linhas": {
+      "group_by": "cd_linha",
+      "identity": ["cd_linha"],
+      "ignore_fields": ["FID"],
+      "geometry_relevant": true
     },
-    {
-      "typeNames": "semob:Estações de  Metrô",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
+
+    "semob:Itinerário Espacial das Linhas": {
+      "identity": "ALL_FIELDS",
+      "ignore_fields": [],
+      "geometry_relevant": true
     },
-    {
-      "typeNames": "semob:Faixas Exclusivas - DF",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
+
+    "semob:Linhas de onibus": {
+      "identity": ["id"],
+      "ignore_fields": [],
+      "geometry_relevant": true
     },
-    {
-      "typeNames": "semob:Frota por Operadora",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
+
+    "semob:Paradas de onibus": {
+      "identity": ["parada"],
+      "ignore_fields": [],
+      "geometry_relevant": true
     },
-    {
-      "typeNames": "semob:Horários das Linhas",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
+
+    "semob:Ponto de paradas 2025": {
+      "identity": "ALL_FIELDS",
+      "ignore_fields": ["FID"],
+      "geometry_relevant": true
     },
-    {
-      "typeNames": "semob:Itinerário Espacial das Linhas",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
+
+    "semob:Terminais de ônibus": {
+      "identity": ["id_area_controle"],
+      "ignore_fields": [],
+      "geometry_relevant": true
     },
-    {
-      "typeNames": "semob:Linha Metrô",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
-    },
-    {
-      "typeNames": "semob:Linhas de onibus",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
-    },
-    {
-      "typeNames": "semob:Paradas de onibus",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
-    },
-    {
-      "typeNames": "semob:Ponto de paradas 2025",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
-    },
-    {
-      "typeNames": "semob:Terminais de ônibus",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
-    },
-    {
-      "typeNames": "semob:Viagens Programadas por Linha",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
-    },
-    {
-      "typeNames": "semob:vw_teste_parada_wfs",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
-    },
-    {
-      "typeNames": "semob:Última posição da frota",
-      "outputFormat": "application/json",
-      "ext": "geojson",
-      "id_col": null
+
+    "semob:Viagens Programadas por Linha": {
+      "group_by": "cd_linha",
+      "identity": "ALL_FIELDS",
+      "ignore_fields": ["FID"],
+      "geometry_relevant": true
     }
+  },
+
+  "jobs": [
+
+    { "typeNames": "semob:Ciclovias Existentes", "enabled": true, "paging": "auto" },
+
+    { "typeNames": "semob:Dados de movimento de passageiros (Quantitativo e Financeiro)", "enabled": true, "paging": "never", "allow_empty": true },
+
+    { "typeNames": "semob:Estações de  Metrô", "enabled": true, "paging": "auto", "id_col": "nom_estacao" },
+
+    { "typeNames": "semob:Faixas Exclusivas - DF", "enabled": true, "paging": "auto", "id_col": "num_extens" },
+
+    { "typeNames": "semob:Frota por Operadora", "enabled": true, "paging": "auto", "id_col": "id_frota", "sortBy": "id_frota A" },
+
+    { "typeNames": "semob:Horários das Linhas", "enabled": true, "paging": "auto" },
+
+    { "typeNames": "semob:Itinerário Espacial das Linhas", "enabled": true, "paging": "never" },
+
+    { "typeNames": "semob:Linha Metrô", "enabled": true, "paging": "auto" },
+
+    { "typeNames": "semob:Linhas de onibus", "enabled": true, "paging": "auto", "id_col": "id", "sortBy": "id A" },
+
+    { "typeNames": "semob:Paradas de onibus", "enabled": true, "paging": "never", "id_col": "parada" },
+
+    { "typeNames": "semob:Ponto de paradas 2025", "enabled": true, "paging": "never" },
+
+    { "typeNames": "semob:Terminais de ônibus", "enabled": true, "paging": "never", "id_col": "id_area_controle" },
+
+    { "typeNames": "semob:Viagens Programadas por Linha", "enabled": true, "paging": "auto" },
+
+    { "typeNames": "semob:vw_teste_parada_wfs", "enabled": true, "paging": "auto" },
+
+    { "typeNames": "semob:Última posição da frota", "enabled": false, "paging": "auto" }
   ]
 }
