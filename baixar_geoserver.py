@@ -13,199 +13,205 @@ BASE_URL = "https://geoserver.semob.df.gov.br/geoserver/semob/ows"
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-AUDIT_REPORT = []
+# ============================================================
+# HUMAN SUMMARY (estrutura única)
+# ============================================================
 
 HUMAN_SUMMARY = {
     "frota": {},
-    "horarios_add": {},
-    "horarios_rem": {},
-    "itinerario": 0,
+    "horarios": {},
+    "itinerario": {},
     "generic": {}
 }
 
-
 # ============================================================
-# TEAMS
+# TEAMS WEBHOOK
 # ============================================================
 
 TEAMS_WEBHOOK = "https://urbimobilidade.webhook.office.com/webhookb2/cb40e1b8-96c0-43da-b152-c6b3d14e17b1@dc1693df-d65a-491e-bced-e17803feaf5e/IncomingWebhook/ce4abed999cc4e0caea27b24af384458/d258e1f9-33a4-4a37-8492-3fa227388e4e/V2tUfmwhLr7y9YxuLLcyHWGbbE5h1xQAT-cl0pCz2j9-U1"
 
+# ============================================================
+# LOG
+# ============================================================
+
+def log(msg):
+    print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}")
 
 # ============================================================
-# TEAMS – ENVIO INTELIGENTE (HEARTBEAT + SEVERIDADE)
+# TEAMS
 # ============================================================
 
 def enviar_teams(resumo_humano):
 
     agora = datetime.now().strftime("%d/%m/%Y %H:%M")
 
-    # --------------------------------------------------------
-    # CLASSIFICAÇÃO AUTOMÁTICA
-    # --------------------------------------------------------
-
     total_frota = sum(abs(v) for v in HUMAN_SUMMARY["frota"].values())
-    total_viagens = (
-        sum(HUMAN_SUMMARY["horarios_add"].values()) +
-        sum(HUMAN_SUMMARY["horarios_rem"].values())
+
+    total_viagens = sum(
+        abs(v["add"]) + abs(v["rem"])
+        for op in HUMAN_SUMMARY["horarios"].values()
+        for v in op.values()
     )
-    total_itinerario = HUMAN_SUMMARY["itinerario"]
-    total_generic = sum(
-        v["added"] + v["removed"]
-        for v in HUMAN_SUMMARY["generic"].values()
+
+    total_itinerario = sum(
+        abs(v["add"]) + abs(v["rem"])
+        for op in HUMAN_SUMMARY["itinerario"].values()
+        for v in op.values()
     )
 
     houve_mudanca = any([
         total_frota,
         total_viagens,
-        total_itinerario,
-        total_generic
+        total_itinerario
     ])
 
-    # ---- definição nível ----
-
-    if total_viagens >= 50 or total_frota >= 20 or total_itinerario >= 10:
-        nivel = "CRITICO"
-        cor = "attention"     # vermelho Teams
-        emoji = "🔴"
-
+    if total_viagens >= 50 or total_frota >= 20:
+        nivel, cor, emoji = "CRITICO", "attention", "🔴"
     elif houve_mudanca:
-        nivel = "ATENCAO"
-        cor = "warning"       # amarelo Teams
-        emoji = "🟡"
-
+        nivel, cor, emoji = "ATENCAO", "warning", "🟡"
     else:
-        nivel = "NORMAL"
-        cor = "good"          # verde Teams
-        emoji = "🟢"
+        nivel, cor, emoji = "NORMAL", "good", "🟢"
 
-    # --------------------------------------------------------
-    # TEXTO PRINCIPAL
-    # --------------------------------------------------------
-
-    if resumo_humano:
-        corpo = resumo_humano
-    else:
-        corpo = (
-            "Nenhuma alteração detectada nas camadas monitoradas.\n"
-            "Sistema funcionando normalmente."
-        )
-
-    titulo = f"{emoji} Auditoria GeoServer SEMOB-DF — {nivel}"
-
-    # --------------------------------------------------------
-    # ADAPTIVE CARD (mensagem rica Teams)
-    # --------------------------------------------------------
+    corpo = resumo_humano or (
+        "Nenhuma alteração detectada nas camadas monitoradas.\n"
+        "Sistema funcionando normalmente."
+    )
 
     payload = {
         "type": "message",
-        "attachments": [
-            {
-                "contentType": "application/vnd.microsoft.card.adaptive",
-                "content": {
-                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
-                    "type": "AdaptiveCard",
-                    "version": "1.4",
-                    "body": [
-
-                        {
-                            "type": "TextBlock",
-                            "text": titulo,
-                            "weight": "Bolder",
-                            "size": "Large",
-                            "color": cor
-                        },
-
-                        {
-                            "type": "TextBlock",
-                            "text": f"Execução: {agora}",
-                            "spacing": "Small",
-                            "isSubtle": True
-                        },
-
-                        {
-                            "type": "TextBlock",
-                            "text": corpo,
-                            "wrap": True,
-                            "spacing": "Medium"
-                        }
-                    ]
-                }
+        "attachments": [{
+            "contentType": "application/vnd.microsoft.card.adaptive",
+            "content": {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [
+                    {
+                        "type": "TextBlock",
+                        "text": f"{emoji} Auditoria GeoServer SEMOB-DF — {nivel}",
+                        "weight": "Bolder",
+                        "size": "Large",
+                        "color": cor
+                    },
+                    {
+                        "type": "TextBlock",
+                        "text": f"Execução: {agora}",
+                        "isSubtle": True
+                    },
+                    {
+                        "type": "TextBlock",
+                        "text": corpo,
+                        "wrap": True
+                    }
+                ]
             }
-        ]
+        }]
     }
 
-    # --------------------------------------------------------
-    # ENVIO
-    # --------------------------------------------------------
-
     try:
-        r = requests.post(
-            TEAMS_WEBHOOK,
-            json=payload,
-            timeout=30
-        )
-
+        r = requests.post(TEAMS_WEBHOOK, json=payload, timeout=30)
         log(f"Teams enviado | status={r.status_code} | nível={nivel}")
-
     except Exception as e:
-        log(f"Falha ao enviar Teams: {e}")
-
-
+        log(f"Falha Teams: {e}")
 
 # ============================================================
-# CONFIGURAÇÃO DAS CAMADAS
+# CAMADAS
 # ============================================================
 
 LAYERS = {
-
-    "semob:Frota por Operadora": {"ignore_fields": ["data_referencia", "fid"]},
+    "semob:Frota por Operadora": {"ignore_fields": ["data_referencia","fid"]},
     "semob:Horários das Linhas": {"ignore_fields": ["fid"]},
     "semob:Itinerário Espacial das Linhas": {"ignore_fields": ["fid"]},
-    "semob:Linhas de onibus": {"ignore_fields": ["fid"]},
+
+    # -------- nomes técnicos corretos (GeoServer) --------
+    "semob:estacoes_metro": {},
+    "semob:faixas_exclusivas": {},
+    "semob:linha_metro": {},
+
     "semob:Paradas de onibus": {"ignore_fields": ["fid"]},
     "semob:Ponto de paradas 2025": {"ignore_fields": ["fid"]},
-    "semob:Terminais de ônibus": {"ignore_fields": ["fid"]},
-    "semob:Viagens Programadas por Linha": {"ignore_fields": ["fid"]},
 
-    # sem auditoria detalhada
-    "semob:Dados de movimento de passageiros (Quantitativo e Financeiro)": {},
-    "semob:Estações de  Metrô": {},
-    "semob:Faixas Exclusivas - DF": {},
-    "semob:Linha Metrô": {},
-    "semob:vw_teste_parada_wfs": {},
+    "semob:terminais_onibus": {"ignore_fields": ["fid"]},
+
+    "semob:Viagens Programadas por Linha": {"ignore_fields": ["fid"]},
 
     # ignorado
     "semob:Última posição da frota": {"ignore": True}
 }
 
 # ============================================================
-# UTILIDADES
+# DOWNLOAD
 # ============================================================
-
-def log(msg):
-    print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}")
-
 
 def request_layer(layer):
 
-    params = {
-        "service": "WFS",
-        "version": "2.0.0",
-        "request": "GetFeature",
-        "typeNames": layer,
-        "outputFormat": "application/json"
-    }
+    base_params = dict(
+        service="WFS",
+        version="2.0.0",
+        request="GetFeature",
+        typeNames=layer,
+        outputFormat="application/json"
+    )
 
-    r = requests.get(BASE_URL, params=params, timeout=120)
+    r = requests.get(BASE_URL, params=base_params, timeout=120)
 
-    if r.status_code != 200:
-        raise RuntimeError(f"{r.status_code} Client Error")
+    # -------------------------
+    # SUCESSO DIRETO
+    # -------------------------
+    if r.status_code == 200:
+        return r.json()
 
-    return r.json()
+    # -------------------------
+    # TENTATIVA COM SORTBY
+    # -------------------------
+    log(f"{layer}: tentando resolver erro 400 automaticamente...")
+
+    try:
+
+        desc_params = dict(
+            service="WFS",
+            version="2.0.0",
+            request="DescribeFeatureType",
+            typeNames=layer
+        )
+
+        desc = requests.get(BASE_URL, params=desc_params, timeout=60)
+
+        text = desc.text
+
+        # tenta achar primeiro campo simples
+        import re
+
+        campos = re.findall(r'name="([^"]+)" type=', text)
+
+        # ignora geometria
+        candidatos = [
+            c for c in campos
+            if c.lower() not in ["geom", "geometry", "the_geom"]
+        ]
+
+        if not candidatos:
+            raise RuntimeError("nenhum campo elegível para sortBy")
+
+        campo_sort = candidatos[0]
+
+        log(f"{layer}: usando sortBy automático -> {campo_sort}")
+
+        base_params["sortBy"] = f"{campo_sort} A"
+
+        r2 = requests.get(BASE_URL, params=base_params, timeout=120)
+
+        if r2.status_code != 200:
+            raise RuntimeError(f"{r2.status_code} Client Error")
+
+        return r2.json()
+
+    except Exception as e:
+        raise RuntimeError(f"400 Client Error (auto-sort falhou): {e}")
 
 
 # ============================================================
-# HASH ROBUSTO
+# HASH
 # ============================================================
 
 def normalize_feature(feature, ignore_fields):
@@ -215,10 +221,7 @@ def normalize_feature(feature, ignore_fields):
     for f in ignore_fields:
         props.pop(f, None)
 
-    return {
-        "properties": props,
-        "geometry": feature.get("geometry")
-    }
+    return {"properties": props, "geometry": feature.get("geometry")}
 
 
 def feature_hash(feature):
@@ -237,173 +240,173 @@ def build_index(fc, ignore_fields):
 
     return index
 
+# ============================================================
+# HELPERS
+# ============================================================
+
+def _add_operadora_linha(container, operadora, linha, campo):
+
+    container.setdefault(operadora, {})
+    container[operadora].setdefault(linha, {"add":0,"rem":0})
+    container[operadora][linha][campo] += 1
+
+# ============================================================
+# HUMAN SUMMARY UPDATE
+# ============================================================
+
+def update_human_summary(layer, added, removed, new_index, old_index):
+
+    # ---------------- FROTA ----------------
+    if layer == "semob:Frota por Operadora":
+
+        for h in added:
+            for f in new_index[h]:
+                op = f["properties"].get("operadora","DESCONHECIDA")
+                HUMAN_SUMMARY["frota"][op] = HUMAN_SUMMARY["frota"].get(op,0)+1
+
+        for h in removed:
+            for f in old_index[h]:
+                op = f["properties"].get("operadora","DESCONHECIDA")
+                HUMAN_SUMMARY["frota"][op] = HUMAN_SUMMARY["frota"].get(op,0)-1
+
+        return
+
+    # ---------------- HORÁRIOS ----------------
+    if layer == "semob:Horários das Linhas":
+
+        for h in added:
+            for f in new_index[h]:
+                p=f["properties"]
+                _add_operadora_linha(
+                    HUMAN_SUMMARY["horarios"],
+                    p.get("nm_operadora","DESCONHECIDA"),
+                    p.get("cd_linha","??"),
+                    "add"
+                )
+
+        for h in removed:
+            for f in old_index[h]:
+                p=f["properties"]
+                _add_operadora_linha(
+                    HUMAN_SUMMARY["horarios"],
+                    p.get("nm_operadora","DESCONHECIDA"),
+                    p.get("cd_linha","??"),
+                    "rem"
+                )
+        return
+
+    # ---------------- ITINERÁRIO ----------------
+    if layer == "semob:Itinerário Espacial das Linhas":
+
+        for h in added:
+            for f in new_index[h]:
+                p=f["properties"]
+                _add_operadora_linha(
+                    HUMAN_SUMMARY["itinerario"],
+                    p.get("nm_operadora","DESCONHECIDA"),
+                    p.get("cd_linha","??"),
+                    "add"
+                )
+
+        for h in removed:
+            for f in old_index[h]:
+                p=f["properties"]
+                _add_operadora_linha(
+                    HUMAN_SUMMARY["itinerario"],
+                    p.get("nm_operadora","DESCONHECIDA"),
+                    p.get("cd_linha","??"),
+                    "rem"
+                )
+        return
+
+# ============================================================
+# IMPACTO OPERACIONAL
+# ============================================================
+
+def detectar_impacto_operacional():
+
+    alertas=[]
+
+    for op,linhas in HUMAN_SUMMARY["horarios"].items():
+        for linha,info in linhas.items():
+
+            if info["rem"]>=10:
+                alertas.append(
+                    f"{op}\n• Linha {linha}: −{info['rem']} viagens"
+                )
+
+    return "\n\n".join(alertas) if alertas else None
 
 # ============================================================
 # RESUMO HUMANO
 # ============================================================
 
-def update_human_summary(layer, added, removed, new_index, old_index):
-
-    # =========================================================
-    # FROTA POR OPERADORA (regra especial)
-    # =========================================================
-    if layer == "semob:Frota por Operadora":
-
-        for h in added:
-            for feat in new_index[h]:
-                op = feat["properties"].get("operadora", "DESCONHECIDA")
-                HUMAN_SUMMARY["frota"].setdefault(op, 0)
-                HUMAN_SUMMARY["frota"][op] += 1
-
-        for h in removed:
-            for feat in old_index[h]:
-                op = feat["properties"].get("operadora", "DESCONHECIDA")
-                HUMAN_SUMMARY["frota"].setdefault(op, 0)
-                HUMAN_SUMMARY["frota"][op] -= 1
-
-        return
-
-    # =========================================================
-    # HORÁRIOS DAS LINHAS (regra especial)
-    # =========================================================
-    if layer == "semob:Horários das Linhas":
-
-        for h in added:
-            for feat in new_index[h]:
-                linha = feat["properties"].get("cd_linha", "??")
-                HUMAN_SUMMARY["horarios_add"].setdefault(linha, 0)
-                HUMAN_SUMMARY["horarios_add"][linha] += 1
-
-        for h in removed:
-            for feat in old_index[h]:
-                linha = feat["properties"].get("cd_linha", "??")
-                HUMAN_SUMMARY["horarios_rem"].setdefault(linha, 0)
-                HUMAN_SUMMARY["horarios_rem"][linha] += 1
-
-        return
-
-    # =========================================================
-    # ITINERÁRIO ESPACIAL (regra especial)
-    # =========================================================
-    if layer == "semob:Itinerário Espacial das Linhas":
-        if added or removed:
-            HUMAN_SUMMARY["itinerario"] += len(added) + len(removed)
-        return
-
-    # =========================================================
-    # FALLBACK AUTOMÁTICO (todas as outras camadas)
-    # =========================================================
-    if added or removed:
-
-        HUMAN_SUMMARY["generic"][layer] = {
-            "added": len(added),
-            "removed": len(removed)
-        }
-
-
-
 def gerar_resumo_humano():
 
-    linhas = []
+    linhas=[]
 
-    # =====================================================
-    # FROTA
-    # =====================================================
     if HUMAN_SUMMARY["frota"]:
-        linhas.append("🚌 Frota por Operadora")
-
-        for op, v in HUMAN_SUMMARY["frota"].items():
-            if v != 0:
-                sinal = "+" if v > 0 else ""
-                linhas.append(f"• {op}: {sinal}{v} veículos")
-
+        linhas.append("🚌 Frota por Operadora\n")
+        for op,v in HUMAN_SUMMARY["frota"].items():
+            if v:
+                linhas.append(f"• {op}: {v:+} veículos")
         linhas.append("")
 
-    # =====================================================
-    # HORÁRIOS
-    # =====================================================
-    if HUMAN_SUMMARY["horarios_add"] or HUMAN_SUMMARY["horarios_rem"]:
+    if HUMAN_SUMMARY["horarios"]:
+        linhas.append("🕒 Horários das Linhas\n")
 
-        linhas.append("🕒 Horários das Linhas")
+        for op,ls in HUMAN_SUMMARY["horarios"].items():
+            linhas.append(f"{op}:")
 
-        for l, q in HUMAN_SUMMARY["horarios_add"].items():
-            linhas.append(f"• Linha {l}: +{q} viagens")
+            for linha,info in ls.items():
+                partes=[]
+                if info["add"]: partes.append(f"+{info['add']} viagens")
+                if info["rem"]: partes.append(f"-{info['rem']} viagens")
 
-        for l, q in HUMAN_SUMMARY["horarios_rem"].items():
-            linhas.append(f"• Linha {l}: -{q} viagens")
+                linhas.append(f"• Linha {linha}: {' | '.join(partes)}")
 
-        linhas.append("")
+            linhas.append("")
 
-    # =====================================================
-    # ITINERÁRIO
-    # =====================================================
-    if HUMAN_SUMMARY["itinerario"] > 0:
-        linhas.append("📍 Itinerário Espacial")
-        linhas.append(
-            f"• {HUMAN_SUMMARY['itinerario']} alterações geométricas"
-        )
-        linhas.append("")
+    if HUMAN_SUMMARY["itinerario"]:
+        linhas.append("📍 Itinerário Espacial\n")
 
-    # =====================================================
-    # CAMADAS GENÉRICAS (NOVO)
-    # =====================================================
-    if HUMAN_SUMMARY["generic"]:
+        for op,ls in HUMAN_SUMMARY["itinerario"].items():
+            linhas.append(f"{op}:")
+            for linha,info in ls.items():
+                linhas.append(
+                    f"• Linha {linha}: +{info['add']} | -{info['rem']} alterações"
+                )
+            linhas.append("")
 
-        linhas.append("📊 Outras Alterações Detectadas")
-
-        for layer, info in HUMAN_SUMMARY["generic"].items():
-
-            nome = layer.replace("semob:", "")
-
-            linhas.append(f"• {nome}: "
-                          f"+{info['added']} | -{info['removed']}")
-
-        linhas.append("")
-
-    # =====================================================
     return "\n".join(linhas) if linhas else None
-
-
 
 # ============================================================
 # AUDITORIA
 # ============================================================
 
-def audit_layer(layer, new_data):
+def audit_layer(layer,new_data):
 
-    ignore_fields = LAYERS[layer].get("ignore_fields", [])
-
-    file_path = DOWNLOAD_DIR / f"{layer.replace(':','__')}.geojson"
+    ignore_fields=LAYERS[layer].get("ignore_fields",[])
+    file_path=DOWNLOAD_DIR/f"{layer.replace(':','__')}.geojson"
 
     if not file_path.exists():
-        json.dump(new_data, open(file_path,"w",encoding="utf-8"), ensure_ascii=False)
+        json.dump(new_data,open(file_path,"w",encoding="utf-8"),ensure_ascii=False)
         log(f"{layer}: snapshot inicial criado")
         return
 
-    old_data = json.load(open(file_path,encoding="utf-8"))
+    old_data=json.load(open(file_path,encoding="utf-8"))
 
-    old_index = build_index(old_data, ignore_fields)
-    new_index = build_index(new_data, ignore_fields)
+    old_index=build_index(old_data,ignore_fields)
+    new_index=build_index(new_data,ignore_fields)
 
-    added = set(new_index) - set(old_index)
-    removed = set(old_index) - set(new_index)
+    added=set(new_index)-set(old_index)
+    removed=set(old_index)-set(new_index)
 
-    update_human_summary(layer, added, removed, new_index, old_index)
+    update_human_summary(layer,added,removed,new_index,old_index)
 
-    log(f"{layer}: {len(added)} adicionados | {len(removed)} removidos | 0 alterados")
+    log(f"{layer}: {len(added)} adicionados | {len(removed)} removidos")
 
-    if added or removed:
-
-        AUDIT_REPORT.append(f"\n=== {layer} ===")
-
-        for h in list(added)[:20]:
-            AUDIT_REPORT.append(f"+ {h}")
-
-        for h in list(removed)[:20]:
-            AUDIT_REPORT.append(f"- {h}")
-
-    json.dump(new_data, open(file_path,"w",encoding="utf-8"), ensure_ascii=False)
-
+    json.dump(new_data,open(file_path,"w",encoding="utf-8"),ensure_ascii=False)
 
 # ============================================================
 # EXECUÇÃO
@@ -413,36 +416,35 @@ def main():
 
     log("Início da auditoria")
 
-    for layer, cfg in LAYERS.items():
+    for layer,cfg in LAYERS.items():
 
         if cfg.get("ignore"):
             log(f"{layer}: IGNORADO")
             continue
 
         try:
-            data = request_layer(layer)
-
-            if "ignore_fields" in cfg:
-                audit_layer(layer, data)
-            else:
-                log(f"{layer}: atualizado (sem auditoria detalhada)")
+            data=request_layer(layer)
+            audit_layer(layer,data)
 
         except Exception as e:
             log(f"{layer}: ERRO {e}")
 
-    resumo_humano = gerar_resumo_humano()
+    resumo=gerar_resumo_humano()
+    impacto=detectar_impacto_operacional()
 
-    if resumo_humano:
-        mensagem = "🚨 ALTERAÇÕES DETECTADAS — SEMOB DF\n\n" + resumo_humano
-    else:
-        mensagem = "✅ Auditoria GeoServer executada — nenhuma alteração detectada."
+    mensagem=""
 
-    enviar_teams(resumo_humano)
+    if impacto:
+        mensagem+="🚨 IMPACTO OPERACIONAL DETECTADO\n\n"+impacto+"\n\n"
+
+    if resumo:
+        mensagem+=resumo
+
+    enviar_teams(mensagem)
 
     log("Fim da auditoria")
 
-
 # ============================================================
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
