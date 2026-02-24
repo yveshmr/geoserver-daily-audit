@@ -14,15 +14,17 @@ DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 # ============================================================
-# HUMAN SUMMARY (estrutura única)
+# HUMAN SUMMARY
 # ============================================================
 
 HUMAN_SUMMARY = {
     "frota": {},
     "horarios": {},
-    "itinerario": {},
-    "generic": {}
+    "itinerario": {}
 }
+
+# itinerário mudou sem alterar viagens
+SPATIAL_ONLY_ALERTS = {}
 
 # ============================================================
 # TEAMS WEBHOOK
@@ -122,20 +124,13 @@ LAYERS = {
     "semob:Frota por Operadora": {"ignore_fields": ["data_referencia","fid"]},
     "semob:Horários das Linhas": {"ignore_fields": ["fid"]},
     "semob:Itinerário Espacial das Linhas": {"ignore_fields": ["fid"]},
-
-    # -------- nomes técnicos corretos (GeoServer) --------
     "semob:estacoes_metro": {},
     "semob:faixas_exclusivas": {},
     "semob:linha_metro": {},
-
     "semob:Paradas de onibus": {"ignore_fields": ["fid"]},
     "semob:Ponto de paradas 2025": {"ignore_fields": ["fid"]},
-
     "semob:terminais_onibus": {"ignore_fields": ["fid"]},
-
     "semob:Viagens Programadas por Linha": {"ignore_fields": ["fid"]},
-
-    # ignorado
     "semob:Última posição da frota": {"ignore": True}
 }
 
@@ -145,7 +140,7 @@ LAYERS = {
 
 def request_layer(layer):
 
-    base_params = dict(
+    params = dict(
         service="WFS",
         version="2.0.0",
         request="GetFeature",
@@ -153,62 +148,12 @@ def request_layer(layer):
         outputFormat="application/json"
     )
 
-    r = requests.get(BASE_URL, params=base_params, timeout=120)
+    r = requests.get(BASE_URL, params=params, timeout=120)
 
-    # -------------------------
-    # SUCESSO DIRETO
-    # -------------------------
     if r.status_code == 200:
         return r.json()
 
-    # -------------------------
-    # TENTATIVA COM SORTBY
-    # -------------------------
-    log(f"{layer}: tentando resolver erro 400 automaticamente...")
-
-    try:
-
-        desc_params = dict(
-            service="WFS",
-            version="2.0.0",
-            request="DescribeFeatureType",
-            typeNames=layer
-        )
-
-        desc = requests.get(BASE_URL, params=desc_params, timeout=60)
-
-        text = desc.text
-
-        # tenta achar primeiro campo simples
-        import re
-
-        campos = re.findall(r'name="([^"]+)" type=', text)
-
-        # ignora geometria
-        candidatos = [
-            c for c in campos
-            if c.lower() not in ["geom", "geometry", "the_geom"]
-        ]
-
-        if not candidatos:
-            raise RuntimeError("nenhum campo elegível para sortBy")
-
-        campo_sort = candidatos[0]
-
-        log(f"{layer}: usando sortBy automático -> {campo_sort}")
-
-        base_params["sortBy"] = f"{campo_sort} A"
-
-        r2 = requests.get(BASE_URL, params=base_params, timeout=120)
-
-        if r2.status_code != 200:
-            raise RuntimeError(f"{r2.status_code} Client Error")
-
-        return r2.json()
-
-    except Exception as e:
-        raise RuntimeError(f"400 Client Error (auto-sort falhou): {e}")
-
+    raise RuntimeError(f"Erro HTTP {r.status_code}")
 
 # ============================================================
 # HASH
@@ -256,7 +201,6 @@ def _add_operadora_linha(container, operadora, linha, campo):
 
 def update_human_summary(layer, added, removed, new_index, old_index):
 
-    # ---------------- FROTA ----------------
     if layer == "semob:Frota por Operadora":
 
         for h in added:
@@ -269,10 +213,7 @@ def update_human_summary(layer, added, removed, new_index, old_index):
                 op = f["properties"].get("operadora","DESCONHECIDA")
                 HUMAN_SUMMARY["frota"][op] = HUMAN_SUMMARY["frota"].get(op,0)-1
 
-        return
-
-    # ---------------- HORÁRIOS ----------------
-    if layer == "semob:Horários das Linhas":
+    elif layer == "semob:Horários das Linhas":
 
         for h in added:
             for f in new_index[h]:
@@ -293,10 +234,8 @@ def update_human_summary(layer, added, removed, new_index, old_index):
                     p.get("cd_linha","??"),
                     "rem"
                 )
-        return
 
-    # ---------------- ITINERÁRIO ----------------
-    if layer == "semob:Itinerário Espacial das Linhas":
+    elif layer == "semob:Itinerário Espacial das Linhas":
 
         for h in added:
             for f in new_index[h]:
@@ -317,25 +256,30 @@ def update_human_summary(layer, added, removed, new_index, old_index):
                     p.get("cd_linha","??"),
                     "rem"
                 )
-        return
 
 # ============================================================
-# IMPACTO OPERACIONAL
+# DETECÇÃO ESPACIAL SILENCIOSA
 # ============================================================
 
-def detectar_impacto_operacional():
+def detectar_itinerario_silencioso():
 
-    alertas=[]
+    for operadora, linhas in HUMAN_SUMMARY["itinerario"].items():
 
-    for op,linhas in HUMAN_SUMMARY["horarios"].items():
-        for linha,info in linhas.items():
+        for linha, info in linhas.items():
 
-            if info["rem"]>=10:
-                alertas.append(
-                    f"{op}\n• Linha {linha}: −{info['rem']} viagens"
-                )
+            houve_itinerario = info["add"] or info["rem"]
 
-    return "\n\n".join(alertas) if alertas else None
+            horarios_op = HUMAN_SUMMARY["horarios"].get(operadora, {})
+            horarios_linha = horarios_op.get(linha, {"add":0,"rem":0})
+
+            houve_horario = (
+                horarios_linha["add"] or
+                horarios_linha["rem"]
+            )
+
+            if houve_itinerario and not houve_horario:
+                SPATIAL_ONLY_ALERTS.setdefault(operadora, [])
+                SPATIAL_ONLY_ALERTS[operadora].append(linha)
 
 # ============================================================
 # RESUMO HUMANO
@@ -345,6 +289,7 @@ def gerar_resumo_humano():
 
     linhas=[]
 
+    # FROTA
     if HUMAN_SUMMARY["frota"]:
         linhas.append("🚌 Frota por Operadora\n")
         for op,v in HUMAN_SUMMARY["frota"].items():
@@ -352,30 +297,56 @@ def gerar_resumo_humano():
                 linhas.append(f"• {op}: {v:+} veículos")
         linhas.append("")
 
+    # HORÁRIOS
     if HUMAN_SUMMARY["horarios"]:
         linhas.append("🕒 Horários das Linhas\n")
 
         for op,ls in HUMAN_SUMMARY["horarios"].items():
-            linhas.append(f"{op}:")
+
+            linhas.append(op)
 
             for linha,info in ls.items():
-                partes=[]
-                if info["add"]: partes.append(f"+{info['add']} viagens")
-                if info["rem"]: partes.append(f"-{info['rem']} viagens")
 
-                linhas.append(f"• Linha {linha}: {' | '.join(partes)}")
+                saldo = info["add"] - info["rem"]
+
+                partes=[]
+                if info["add"]:
+                    partes.append(f"+{info['add']}")
+                if info["rem"]:
+                    partes.append(f"-{info['rem']}")
+
+                linhas.append(
+                    f"• Linha {linha}: {' | '.join(partes)} viagens (saldo {saldo:+})"
+                )
 
             linhas.append("")
 
+    # ITINERÁRIO
     if HUMAN_SUMMARY["itinerario"]:
         linhas.append("📍 Itinerário Espacial\n")
 
         for op,ls in HUMAN_SUMMARY["itinerario"].items():
-            linhas.append(f"{op}:")
+
+            linhas.append(op)
+
             for linha,info in ls.items():
-                linhas.append(
-                    f"• Linha {linha}: +{info['add']} | -{info['rem']} alterações"
-                )
+
+                qtd = min(info["add"], info["rem"])
+
+                if qtd:
+                    linhas.append(f"• Linha {linha}: {qtd} alterações")
+
+            linhas.append("")
+
+    # ALERTA ESPACIAL SILENCIOSO
+    if SPATIAL_ONLY_ALERTS:
+
+        linhas.append("⚠️ Alteração espacial sem mudança de viagens\n")
+
+        for op,lista in SPATIAL_ONLY_ALERTS.items():
+            linhas.append(op)
+            for linha in lista:
+                linhas.append(f"• Linha {linha}")
             linhas.append("")
 
     return "\n".join(linhas) if linhas else None
@@ -429,18 +400,11 @@ def main():
         except Exception as e:
             log(f"{layer}: ERRO {e}")
 
+    detectar_itinerario_silencioso()
+
     resumo=gerar_resumo_humano()
-    impacto=detectar_impacto_operacional()
 
-    mensagem=""
-
-    if impacto:
-        mensagem+="🚨 IMPACTO OPERACIONAL DETECTADO\n\n"+impacto+"\n\n"
-
-    if resumo:
-        mensagem+=resumo
-
-    enviar_teams(mensagem)
+    enviar_teams(resumo)
 
     log("Fim da auditoria")
 
